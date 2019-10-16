@@ -1,142 +1,92 @@
 require("dotenv").config();
 
-var keys = require("./keys.js");
-
-var moment = require("moment");
-
 var axios = require("axios");
-
+var keys = require("./keys.js");
+var moment = require("moment");
 var fs = require("fs");
 
-var Spotify = require("node-spotify-api");
+var spotify = require("node-spotify-api");
+var spotifyApi = new spotify(keys.spotify);
 
+var searchType = process.argv[2];
+var choice = process.argv[3];
 
-
-var getArtistNames = function (artist) {
-    return artist.name;
-};
-
-var spotify = new Spotify(keys.spotify);
-
-
-var getSpotSong = function (songName) {
-    if (songName === undefined) {
-        songName = "Let it happen";
+function bandSearch() {
+  axios.get("https://rest.bandsintown.com/artists/" + choice + "/events?app_id=codingbootcamp").then(function (response) {
+    for (let i = 0; i < response.data.length; i++) {
+      var stuff = response.data[i];
+      console.log("Venue: " + stuff.venue.name);
+      console.log("Location: " + stuff.venue.city);
+      var eventTime = stuff.datetime;
+      var momentTime = moment(eventTime).format("MM-DD-YYYY");
+      console.log("Date: " + momentTime);
     }
+  })
+}
 
-    spotify.search({ type: 'track', query: songName, limit: 3 }, function (err, data) {
-        if (err) {
-            return console.log('Error occurred: ' + err);
-        };
-        var songs = data.tracks.items;
-
-        for (var i = 0; i < songs.length; i++) {
-            console.log(i);
-            console.log("artist(s): " + songs[i].artists.map(getArtistNames));
-            console.log("song name: " + songs[i].name);
-            console.log("preview song: " + songs[i].preview_url);
-            console.log("album: " + songs[i].album.name);
-            console.log("-----------------------------------");
+  function songSearch() {
+    spotifyApi.search({ type: 'track', query: choice, market: "US" }, function (err, data) {
+      if (err) {
+        return console.log('Error occurred: ' + err);
+      }
+      for (let i = 0; i < data.tracks.items.length; i++) {
+        const track = data.tracks.items[i];
+        console.log("Song: " + track.name);
+        console.log("Track Preview Link: " + track.external_urls.spotify);
+        console.log("Album: " + track.album.name);
+        for (let j = 0; j < track.artists.length; j++) {
+          const artist = track.artists[j];
+          console.log("Artist: " + artist.name);
         }
-    }
-    );
-};
+      }
+    })
+  }
 
-var getMyBands = function (artist) {
-    var queryURL = "https://rest.bandsintown.com/artists/" + artist + "/events?app_id=codingbootcamp";
-
-    axios.get(queryURL).then(
-        function (response) {
-            var bandData = response.data;
-
-            if (!bandData.length) {
-                console.log("Nothing found for" + artist);
-                return;
-            }
-
-            console.log("Upcoming concerts for " + artist + ":");
-
-            for (var i = 0; i < bandData.length; i++) {
-                var show = bandData[i];
-
-                console.log(
-                    show.venue.city +
-                    "," +
-                    (show.venue.region || show.venue.country) +
-                    " at " +
-                    show.venue.name +
-                    " " +
-                    moment(show.datetime).format("MM/DD/YYYY")
-                );
-            }
+  function movieSearch() {
+    var movieInfo = "http://www.omdbapi.com/?t=" + choice + "&apikey=trilogy";
+    axios.get(movieInfo).then(
+      function (response) {
+        console.log("Title: " + response.data.Title);
+        console.log("Year: " + response.data.Year);
+        console.log("IMDB Rating: " + response.data.imdbRating);
+        console.log("Country: " + response.data.Country);
+        console.log("Language: " + response.data.Language);
+        console.log("Plot: " + response.data.Plot);
+        console.log("Actors: " + response.data.Actors);
+        for (let i = 0; i < response.data.Ratings.length; i++) {
+          console.log(response.data.Ratings[i]);
+          //need to filter response to just Rotten Tomatoes
         }
-    );
-};
+      })
+  }
 
-// Function for running a Movie Search
-var getMeMovie = function (movieName) {
-    if (movieName === undefined) {
-        movieName = "IT";
-    }
 
-    var urlHit =
-        "http://www.omdbapi.com/?t=" + movieName + "&y=&plot=full&tomatoes=true&apikey=trilogy";
+  function randomSearch() {
+    fs.readFile("random.txt", "utf8", function(err, data) {
+      if (err) {
+        return console.log(err);
+      }
+      console.log(data);
+      data = data.split(", ");
+      pickData(Arr[0], Arr[1]);
+      
+    })
+  }
 
-    axios.get(urlHit).then(
-        function (response) {
-            var jsonData = response.data;
+  switch (searchType) {
+    case "concert-this":
+      bandSearch()
+      break;
 
-            console.log("Title: " + jsonData.Title);
-            console.log("Year: " + jsonData.Year);
-            console.log("Rated: " + jsonData.Rated);
-            console.log("IMDB Rating: " + jsonData.imdbRating);
-            console.log("Country: " + jsonData.Country);
-            console.log("Language: " + jsonData.Language);
-            console.log("Plot: " + jsonData.Plot);
-            console.log("Actors: " + jsonData.Actors);
-            console.log("Rotten Tomatoes Rating: " + jsonData.Ratings[1].Value);
-        }
-    );
-};
+    case "spotify-this-song":
+      songSearch();
+      break;
 
-var doWhatItSays = function () {
-    fs.readFile("random.txt", "utf8", function (error, data) {
-        console.log(data);
+    case "movie-this":
+      movieSearch();
+      break;
 
-        var dataArr = data.split(",");
-
-        if (dataArr.length === 2) {
-            pick(dataArr[0], dataArr[1]);
-        } else if (dataArr.length === 1) {
-            pick(dataArr[0]);
-        }
-    });
-};
-
-// Function for determining which command is executed
-var pick = function (caseData, functionData) {
-    switch (caseData) {
-        case "concert-this":
-            getMyBands(functionData);
-            break;
-        case "spotify-this-song":
-            getSpotSong(functionData);
-            break;
-        case "movie-this":
-            getMeMovie(functionData);
-            break;
-        case "do-what-it-says":
-            doWhatItSays();
-            break;
-        default:
-            console.log("LIRI doesn't know that");
-    }
-};
-
-var runThis = function (argOne, argTwo) {
-    pick(argOne, argTwo);
-};
-
-// MAIN PROCESS
-// =====================================
-runThis(process.argv[2], process.argv.slice(3).join(" "));
+    case "do-what-it-says":
+      randomSearch();
+      break;
+  }
